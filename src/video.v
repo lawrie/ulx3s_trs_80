@@ -83,15 +83,11 @@ module video (
                                                  vga_data;
   assign font_addr = {char_adjust, 1'b0, y[2:0]};
 
-  wire pixel = font_line[~x[2:0]];
-  wire [3:0] pixel4 = pixel & !border ? 4'b1111 : 4'b0;
-
-  wire [3:0] red = pixel4;
-  wire [3:0] green = pixel4;
-  wire [3:0] blue = pixel4;
-
-  assign vga_r = !vga_de ? 4'b0 : red;
-  assign vga_g = !vga_de ? 4'b0 : green;
-  assign vga_b = !vga_de ? 4'b0 : blue;
+  reg [3:0] R_pixel;
+  always @(posedge clk) R_pixel <= {4{font_line[~x[2:0]]}};
+  
+  assign vga_r = !vga_de | border ? 4'b0 : R_pixel;
+  assign vga_g = !vga_de | border ? 4'b0 : R_pixel;
+  assign vga_b = !vga_de | border ? 4'b0 : R_pixel;
 
 endmodule
