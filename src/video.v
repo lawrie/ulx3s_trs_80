@@ -26,7 +26,7 @@ module video (
   parameter VFP = 11;
   parameter VBP = 31;
   parameter VT  = VA + VS + VFP + VBP;
-  parameter VB = 112;
+  parameter VB = 48;
   parameter VB2 = VB/2;
 
   wire [11:0] font_addr;
@@ -41,6 +41,9 @@ module video (
   reg [9:0] hc = 0;
   reg [9:0] vc = 0;
 
+  reg [3:0] row = 0;
+  reg [3:0] line = 0;
+
   reg R_vga_hs, R_vga_vs, R_vga_hde, R_vga_vde;
 
   always @(posedge clk) begin
@@ -49,6 +52,22 @@ module video (
       if (vc == VT - 1) vc <= 0;
       else vc <= vc + 1;
     end else hc <= hc + 1;
+
+    if (hc == 0) begin
+      if (vc[0]) begin
+        if (line == 11) begin
+          line <= 0;
+          row <= row + 1;
+        end else begin
+          line <= line + 1;
+        end
+      end
+
+      if (vc == VB - 1) begin
+        row <= 0;
+        line <= 0;
+      end
+    end
 
     case (hc)
       0           : R_vga_hde <= 1;
@@ -76,12 +95,12 @@ module video (
   wire vBorder = (vc < VB || vc >= VA - VB);
   wire border = hBorder || vBorder;
 
-  assign vga_addr = {y[6:3], x[8:3]};
+  assign vga_addr = {row, x[8:3]};
 
   wire [7:0] char_adjust = 
 	  vga_data[5] == 0 && vga_data[7] == 0 ? vga_data | 8'h40 :
                                                  vga_data;
-  assign font_addr = {char_adjust, 1'b0, y[2:0]};
+  assign font_addr = {char_adjust, line};
 
   reg [3:0] R_pixel;
   always @(posedge clk) R_pixel <= {4{font_line[~x[2:0]]}};

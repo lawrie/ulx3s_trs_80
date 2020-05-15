@@ -64,8 +64,9 @@ module trs80 (
   wire          n_IORQ;
   wire          n_M1;
   wire          n_kbdCS;
+  wire          n_cassCS;
   
-  reg           sound = 0;
+  reg [3:0]     sound;
 
   reg [3:0]     cpuClockCount;
   wire          cpuClock;
@@ -123,9 +124,6 @@ module trs80 (
     .do(cpuDataOut),
     .pc(pc)
   );
-
-  assign audio_l = {4{sound}};
-  assign audio_r = {4{sound}};
 
   // ===============================================================
   // RAM
@@ -224,6 +222,7 @@ module trs80 (
   // ===============================================================
 
   assign n_kbdCS = !(cpuAddress[15:8] == 8'h38);
+  assign n_cassCS = !(cpuAddress[7:0]  == 8'hFF);
 
   // ===============================================================
   // Memory decoding
@@ -241,6 +240,24 @@ module trs80 (
   end
 
   assign cpuClockEnable = cpuClockCount[3]; // 1.75Mhz
+
+  // ===============================================================
+  // Audio
+  // ===============================================================
+
+  always @(posedge cpuClock) begin
+    if (n_ioWR == 1'b0 && n_cassCS == 1'b0) begin
+      case (cpuDataOut[1:0])
+        2'b00: sound <= 4'b0100;
+        2'b01: sound <= 4'b1000;
+        2'b10: sound <= 4'b0000;
+        2'b11: sound <= 4'b0100;
+      endcase
+    end
+  end
+
+  assign audio_l = sound;
+  assign audio_r = sound;
 
   // ===============================================================
   // Leds
