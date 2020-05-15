@@ -41,17 +41,33 @@ module video (
   reg [9:0] hc = 0;
   reg [9:0] vc = 0;
 
+  reg R_vga_hs, R_vga_vs, R_vga_hde, R_vga_vde;
+
   always @(posedge clk) begin
     if (hc == HT - 1) begin
       hc <= 0;
       if (vc == VT - 1) vc <= 0;
       else vc <= vc + 1;
     end else hc <= hc + 1;
+
+    case (hc)
+      0           : R_vga_hde <= 1;
+      HA          : R_vga_hde <= 0;
+      HA+HFP      : R_vga_hs  <= 1;
+      HA+HFP+HS-1 : R_vga_hs  <= 0;
+    endcase
+
+    case(vc)
+      0           : R_vga_vde <= 1;
+      VA          : R_vga_vde <= 0;
+      VA+VFP      : R_vga_vs  <= 1;
+      VA+VFP+VS-1 : R_vga_vs  <= 0;
+    endcase
   end
 
-  assign vga_hs = !(hc >= HA + HFP && hc < HA + HFP + HS);
-  assign vga_vs = !(vc >= VA + VFP && vc < VA + VFP + VS);
-  assign vga_de = !(hc > HA || vc > VA);
+  assign vga_hs = !R_vga_hs;
+  assign vga_vs = !R_vga_vs;
+  assign vga_de = R_vga_hde && R_vga_vde;
 
   wire [8:0] x = hc - HB;
   wire [6:0] y = vc[9:1] - VB2;
@@ -61,7 +77,10 @@ module video (
   wire border = hBorder || vBorder;
 
   assign vga_addr = {y[6:3], x[8:3]};
-  wire [7:0] char_adjust = vga_data[5] == 0 && vga_data[7] == 0 ? vga_data | 8'h40 : vga_data;
+
+  wire [7:0] char_adjust = 
+	  vga_data[5] == 0 && vga_data[7] == 0 ? vga_data | 8'h40 :
+                                                 vga_data;
   assign font_addr = {char_adjust, 1'b0, y[2:0]};
 
   wire pixel = font_line[~x[2:0]];
