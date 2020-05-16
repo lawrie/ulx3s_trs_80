@@ -31,6 +31,8 @@ module trs80 (
   output [7:0]  leds
 );
 
+  assign wifi_gpio0 = 0;
+
   // VGA (should be assigned to some gp/gn outputs
   wire   [3:0]  red;
   wire   [3:0]  green;
@@ -65,6 +67,7 @@ module trs80 (
   wire          n_M1;
   wire          n_kbdCS;
   wire          n_cassCS;
+  wire          n_gameCS;
   
   reg [3:0]     sound;
 
@@ -119,6 +122,7 @@ module trs80 (
     .m1_n(n_M1),
     .iorq_n(n_IORQ),
     .wr_n(n_WR),
+    .rd_n(n_RD),
     .A(cpuAddress),
     .di(cpuDataIn),
     .do(cpuDataOut),
@@ -144,6 +148,12 @@ module trs80 (
     .clk_b(clk_vga),
     .addr_b(16'h3c00 + {6'b0, vga_addr}),
     .dout_b(vidOut)
+  );
+
+  rom16 #(.MEM_INIT_FILE("../roms/galaxy.mem")) game_rom (
+    .clk(cpuClock),
+    .addr(game_addr),
+    .dout(game_out)
   );
 
   // ===============================================================
@@ -223,13 +233,45 @@ module trs80 (
 
   assign n_kbdCS = !(cpuAddress[15:8] == 8'h38);
   assign n_cassCS = !(cpuAddress[7:0]  == 8'hFF);
+  assign n_gameCS = !(cpuAddress[7:0]  == 8'h04);
 
   // ===============================================================
   // Memory decoding
   // ===============================================================
 
+  reg [7:0] r_game_out;
+  reg [13:0] game_addr = 0;
+  wire [7:0] game_out;
+  reg [2:0] tape_bits;
+  reg r_cpuClockEnable;
+  reg r_n_ioRD;
+
   assign cpuDataIn =  n_kbdCS == 1'b0 ? key_data :
+                      n_gameCS == 1'b0 && n_ioRD == 1'b0 ? r_game_out :
                       ramOut;
+  
+  always @(posedge cpuClock) begin
+    r_cpuClockEnable <= cpuClockEnable;
+    if (cpuClockEnable && !r_cpuClockEnable) begin
+      // OUT 4
+      if (n_gameCS == 1'b0 && n_ioWR == 1'b0) game_addr <= 0;
+
+      // Cassette out
+      if (n_cassCS == 1'b0 && n_ioWR == 1'b0) begin
+	if (cpuDataOut[2] && !tape_bits[2]) begin // Motor on
+          game_addr <= 0;
+	end 
+	tape_bits <= cpuDataOut[2:0];
+      end
+
+      // IN 4
+      r_n_ioRD <= n_ioRD;
+      if (n_gameCS == 1'b0 && n_ioRD == 1'b0 && r_n_ioRD == 1'b1) begin 
+        r_game_out <= game_out;
+        game_addr <= game_addr + 1;
+      end
+    end
+  end
 
   // ===============================================================
   // CPU clock enable
@@ -262,11 +304,21 @@ module trs80 (
   // ===============================================================
   // Leds
   // ===============================================================
-  wire led1 = 0;
+  wire led1 = tape_bits[2];
   wire led2 = 0;
   wire led3 = 0;
   wire led4 = !n_hard_reset;
 
-  assign leds = {led4, led3, led2, led1};
+  reg [7:0] diag;
+  reg [7:0] old_game_out = 0;
+  always @(posedge cpuClock) begin
+    if (old_game_out == 0 && r_game_out == 8'h47) begin
+      diag <= game_addr[13:6];
+      old_game_out <= r_game_out;
+    end
+  end
+
+  //assign leds = {led4, led3, led2, led1};
+  assign leds = diag;
 
 endmodule
