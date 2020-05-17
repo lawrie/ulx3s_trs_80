@@ -141,7 +141,7 @@ module trs80 (
   )
   ram48 (
     .clk_a(cpuClock),
-    .we_a(!n_memWR),
+    .we_a(!n_memWR && cpuAddress >= 16'h3000),
     .addr_a(cpuAddress),
     .din_a(cpuDataOut),
     .dout_a(ramOut),
@@ -150,7 +150,7 @@ module trs80 (
     .dout_b(vidOut)
   );
 
-  rom16 #(.MEM_INIT_FILE("../roms/galaxy.mem")) game_rom (
+  rom16 #(.MEM_INIT_FILE("../roms/dslogo.mem")) game_rom (
     .clk(cpuClock),
     .addr(game_addr),
     .dout(game_out)
@@ -239,20 +239,18 @@ module trs80 (
   // Memory decoding
   // ===============================================================
 
-  reg [7:0] r_game_out;
+  reg [7:0]  r_game_out;
   reg [13:0] game_addr = 0;
+  reg [2:0]  tape_bits;
+  reg        r_n_ioRD;
   wire [7:0] game_out;
-  reg [2:0] tape_bits;
-  reg r_cpuClockEnable;
-  reg r_n_ioRD;
 
-  assign cpuDataIn =  n_kbdCS == 1'b0 ? key_data :
-                      n_gameCS == 1'b0 && n_ioRD == 1'b0 ? r_game_out :
+  assign cpuDataIn =  n_gameCS == 1'b0 && n_ioRD == 1'b0 ? r_game_out :
+	              n_kbdCS == 1'b0 && n_memRD == 1'b0 ? key_data :
                       ramOut;
   
   always @(posedge cpuClock) begin
-    r_cpuClockEnable <= cpuClockEnable;
-    if (cpuClockEnable && !r_cpuClockEnable) begin
+    if (cpuClockEnable) begin
       // OUT 4
       if (n_gameCS == 1'b0 && n_ioWR == 1'b0) game_addr <= 0;
 
@@ -309,16 +307,7 @@ module trs80 (
   wire led3 = 0;
   wire led4 = !n_hard_reset;
 
-  reg [7:0] diag;
-  reg [7:0] old_game_out = 0;
-  always @(posedge cpuClock) begin
-    if (old_game_out == 0 && r_game_out == 8'h47) begin
-      diag <= game_addr[13:6];
-      old_game_out <= r_game_out;
-    end
-  end
-
   //assign leds = {led4, led3, led2, led1};
-  assign leds = diag;
+  assign leds = game_addr[13:8];
 
 endmodule
