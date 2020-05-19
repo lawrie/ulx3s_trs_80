@@ -28,15 +28,13 @@ module trs80
   input         wifi_gpio5,
   output        wifi_gpio0,
 
-  inout         sd_clk, sd_cmd,
+  //inout         sd_clk, sd_cmd,
   inout   [3:0] sd_d,
 
   inout  [27:0] gp,gn,
   // Leds
   output [7:0]  leds
 );
-
-  assign wifi_gpio0 = 0;
 
   // VGA (should be assigned to some gp/gn outputs
   wire   [3:0]  red;
@@ -117,6 +115,7 @@ module trs80
   wire  [7:0] spi_ram_di;
   wire  [7:0] spi_ram_do = ramOut;
 
+  assign sd_d[0] = 1'bz;
   assign sd_d[3] = 1'bz; // FPGA pin pullup sets SD card inactive at SPI bus
 
   wire irq;
@@ -390,7 +389,7 @@ module trs80
   wire led3 = 0;
   wire led4 = !n_hard_reset;
 
-  //assign leds = {led4, led3, led2, led1};
-  assign leds = game_addr[13:8];
+  assign leds = {led4, led3, led2, led1, sd_d[3], sd_d[0]};
+  //assign leds = game_addr[13:8];
 
 endmodule
