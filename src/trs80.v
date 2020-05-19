@@ -100,6 +100,55 @@ module trs80
   );
 
   // ===============================================================
+  // Joystick for OSD control and games
+  // ===============================================================
+
+  reg [6:0] R_btn_joy;
+  always @(posedge cpuClock)
+    R_btn_joy <= btn;
+
+  // ===============================================================
+  // SPI Slave for RAM and CPU control
+  // ===============================================================
+
+  wire        spi_ram_wr, spi_ram_rd;
+  wire [31:0] spi_ram_addr;
+  wire  [7:0] spi_ram_di;
+  wire  [7:0] spi_ram_do = ramOut;
+
+  assign sd_d[3] = 1'bz; // FPGA pin pullup sets SD card inactive at SPI bus
+
+  wire irq;
+  spi_ram_btn
+  #(
+    .c_sclk_capable_pin(1'b0),
+    .c_addr_bits(32)
+  )
+  spi_ram_btn_inst
+  (
+    .clk(cpuClock),
+    .csn(~wifi_gpio5),
+    .sclk(wifi_gpio16),
+    .mosi(sd_d[1]), // wifi_gpio4
+    .miso(sd_d[2]), // wifi_gpio12
+    .btn(R_btn_joy),
+    .irq(irq),
+    .wr(spi_ram_wr),
+    .rd(spi_ram_rd),
+    .addr(spi_ram_addr),
+    .data_in(spi_ram_do),
+    .data_out(spi_ram_di)
+  );
+  assign wifi_gpio0 = ~irq;
+
+  reg [7:0] R_cpu_control;
+  always @(posedge cpuClock) begin
+    if (spi_ram_wr && spi_ram_addr[31:24] == 8'hFF) begin
+      R_cpu_control <= spi_ram_di;
+    end
+  end
+
+  // ===============================================================
   // Reset generation
   // ===============================================================
   reg [15:0] pwr_up_reset_counter = 0;
@@ -115,13 +164,13 @@ module trs80
   // ===============================================================
   wire [15:0] pc;
   
-  wire n_hard_reset = pwr_up_reset_n & btn[0];
+  wire n_hard_reset = pwr_up_reset_n & btn[0] & ~R_cpu_control[0];
 
   tv80n cpu1 (
     .reset_n(n_hard_reset),
     //.clk(cpuClock), // turbo mode 28MHz
     .clk(cpuClockEnable), // normal mode 3.5MHz
-    .wait_n(1'b1),
+    .wait_n(~R_cpu_control[1]),
     .int_n(1'b1),
     .nmi_n(1'b1),
     .busrq_n(1'b1),
@@ -148,9 +197,9 @@ module trs80
   )
   ram48 (
     .clk_a(cpuClock),
-    .we_a(!n_memWR && cpuAddress >= 16'h3000),
-    .addr_a(cpuAddress),
-    .din_a(cpuDataOut),
+    .we_a(R_cpu_control[1] ? spi_ram_wr && spi_ram_addr[31:24] == 8'h00 : !n_memWR && cpuAddress >= 16'h3000),
+    .addr_a(R_cpu_control[1] ? spi_ram_addr[15:0] : cpuAddress),
+    .din_a(R_cpu_control[1] ? spi_ram_di : cpuDataOut),
     .dout_a(ramOut),
     .clk_b(clk_vga),
     .addr_b(16'h3c00 + {6'b0, vga_addr}),
