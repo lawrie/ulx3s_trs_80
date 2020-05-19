@@ -100,10 +100,59 @@ class ld_trs80:
 
   # "intelligent" CAS loader
   def loadcas_stream(self,f):
-    header=bytearray(2)
-    f.readinto(header)
-    addr=unpack("<H",header)[0]
+    byte = bytearray(1)
+    word = bytearray(2)
+    # read 0 until not 0
+    while f.readinto(byte):
+        if byte[0]:
+            break
+    if byte[0] != 0xA5:
+        print("No sync byte")
+        return
+    f.readinto(byte)
+    if byte[0] != 0x55:
+        print("No leader byte")
+        return
+    filename = bytearray(0)
+    while f.readinto(byte) and len(filename) < 64:
+        if byte[0] == 0x3C:
+            break;
+        filename += byte[0:1]
+    print("Filename %s" % filename)
+    block = bytearray(256)
     self.cpu_halt()
+    while True:
+        f.readinto(byte)
+        l = byte[0]
+        if l == 0:
+          l = 256
+        #print("Length: %d" % l, end="")
+        f.readinto(word)
+        checksum = word[0] + word[1]
+        addr = (word[1] << 8) + word[0]
+        #print(", address: %04X" % addr)
+        if len(block) != l:
+            block = bytearray(l)
+        if f.readinto(block):
+          for b in block:
+              checksum += b
+        else:
+          print("File too short")
+          return
+        f.readinto(byte)
+        if (checksum & 0xFF) != byte[0]:
+            print("Checksum error")
+            return
+        self.poke(addr,block)
+        f.readinto(byte)
+        if byte[0] == 0x78:
+            f.readinto(word)
+            addr = (word[1] << 8) + word[0]
+            print("Starting address: %04X" % addr)
+            print("> SYSTEM")
+            print("*? /%d" % addr)
+            self.poke(0x40DF,word)
+            break
     self.cpu_continue()
 
   def defunct(self,f):
