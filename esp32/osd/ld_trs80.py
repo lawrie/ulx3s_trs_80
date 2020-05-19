@@ -197,7 +197,7 @@ class ld_trs80:
         f.readinto(byte)
         header=bytearray(byte[0])
         f.readinto(header)
-        printf("Reading 05 block length = %d" % len(header));
+        print("Reading 05 block length = %d %s" % (len(header), header.decode()));
         continue
       print("unknown record type %02X" % byte[0])
       break
