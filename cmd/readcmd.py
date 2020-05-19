@@ -8,11 +8,7 @@ class readcmd:
     byte=bytearray(1)
     word=bytearray(2)
     block=bytearray(256)
-    while True:
-      if f.readinto(byte):
-        pass
-      else:
-        return
+    while f.readinto(byte):
       if byte[0]==1:
         # record type 1 is "load block"
         f.readinto(byte)
