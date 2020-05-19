@@ -7,7 +7,7 @@
 from struct import pack,unpack
 from time import sleep_ms
 
-class ld_vic20:
+class ld_trs80:
   def __init__(self,spi,cs):
     self.spi=spi
     self.cs=cs
