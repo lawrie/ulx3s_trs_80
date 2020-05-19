@@ -1,5 +1,9 @@
 `default_nettype none
-module trs80 (
+module trs80
+#(
+  parameter c_vga_out = 0
+)
+(
   input         clk25_mhz,
   // Buttons
   input [6:0]   btn,
@@ -42,15 +46,18 @@ module trs80 (
   
   generate
     genvar i;
+    if(c_vga_out)
+    begin
     for(i = 0; i < 4; i = i+1)
     begin
       assign gp[24-i-14] = red[i];
       assign gn[17-i-14] = green[i];
       assign gn[24-i-14] = blue[i];
     end
+    assign gp[16-14] = vSync;
+    assign gp[17-14] = hSync;
+    end
   endgenerate
-  assign gp[16-14] = vSync;
-  assign gp[17-14] = hSync;
 
   wire          n_WR;
   wire          n_RD;
