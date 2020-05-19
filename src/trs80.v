@@ -6,7 +6,7 @@ module trs80
 (
   input         clk25_mhz,
   // Buttons
-  input [6:0]   btn,
+  input  [6:0]  btn,
   // HDMI
   output [3:0]  gpdi_dp,
   output [3:0]  gpdi_dn,
@@ -22,12 +22,13 @@ module trs80
   input         ftdi_txd,
   output        ftdi_rxd,
   input         wifi_txd,
-  output        wifi_rxd,  // SPI from ESP32
+  output        wifi_rxd,
+  // SPI from ESP32
   input         wifi_gpio16,
   input         wifi_gpio5,
   output        wifi_gpio0,
 
-  inout  sd_clk, sd_cmd,
+  inout         sd_clk, sd_cmd,
   inout   [3:0] sd_d,
 
   inout  [27:0] gp,gn,
@@ -197,9 +198,9 @@ module trs80
   )
   ram48 (
     .clk_a(cpuClock),
-    .we_a(R_cpu_control[1] ? spi_ram_wr && spi_ram_addr[31:24] == 8'h00 : !n_memWR && cpuAddress >= 16'h3000),
+    .we_a(  R_cpu_control[1] ? spi_ram_wr && spi_ram_addr[31:24] == 8'h00 : !n_memWR && cpuAddress >= 16'h3000),
     .addr_a(R_cpu_control[1] ? spi_ram_addr[15:0] : cpuAddress),
-    .din_a(R_cpu_control[1] ? spi_ram_di : cpuDataOut),
+    .din_a( R_cpu_control[1] ? spi_ram_di   : cpuDataOut),
     .dout_a(ramOut),
     .clk_b(clk_vga),
     .addr_b(16'h3c00 + {6'b0, vga_addr}),
