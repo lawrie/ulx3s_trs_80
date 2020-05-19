@@ -126,10 +126,10 @@ class ld_trs80:
           print("*? /%d or just /" % addr)
           self.poke(0x40DF,word)
           if self.autostart:
-            stored_rom = bytearray(8)
+            stored_rom = bytearray(3)
             self.peek(0,stored_rom)
-            self.poke(0,bytearray([0xF3, 0xAF, 0x11, 0xFF, 0xFF, 0xC3])) # JMP ...
-            self.poke(6,word)
+            self.poke(0,bytearray([0xC3])) # JMP ...
+            self.poke(1,word)
             self.cpu_reset_halt()
             self.cpu_halt()
             self.cpu_continue()
