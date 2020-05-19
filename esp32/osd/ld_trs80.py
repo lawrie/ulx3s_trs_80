@@ -12,6 +12,7 @@ class ld_trs80:
     self.spi=spi
     self.cs=cs
     self.cs.off()
+    self.autostart=1
 
   # LOAD/SAVE and CPU control
 
@@ -58,34 +59,6 @@ class ld_trs80:
   def cpu_continue(self):
     self.ctrl(0)
 
-  def store_rom(self,length=32):
-    self.stored_code=bytearray(length)
-    self.cs.on()
-    self.spi.write(bytearray([1, 0,0,(self.code_addr>>8)&0xFF,self.code_addr&0xFF, 0]))
-    self.spi.readinto(self.stored_code)
-    self.cs.off()
-    self.stored_vector=bytearray(2)
-    self.cs.on()
-    self.spi.write(bytearray([1, 0,0,(self.vector_addr>>8)&0xFF,self.vector_addr&0xFF, 0]))
-    self.spi.readinto(self.stored_vector)
-    self.cs.off()
-
-  def restore_rom(self):
-    self.cs.on()
-    self.spi.write(bytearray([0, 0,0,(self.code_addr>>8)&0xFF,self.code_addr&0xFF]))
-    self.spi.write(self.stored_code)
-    self.cs.off()
-    self.cs.on()
-    self.spi.write(bytearray([0, 0,0,(self.vector_addr>>8)&0xFF,self.vector_addr&0xFF]))
-    self.spi.write(self.stored_vector)
-    self.cs.off()
-    del self.stored_code
-    del self.stored_vector
-
-  def patch_rom(self,regs):
-    self.cs.on()
-    self.cs.off()
-
   def poke(self,addr,data):
     self.cs.on()
     self.spi.write(bytearray([0,(addr>>24)&0xFF,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF]))
@@ -97,7 +70,7 @@ class ld_trs80:
     self.spi.write(bytearray([1,(addr>>24)&0xFF,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF,0]))
     self.spi.readinto(buffer)
     self.cs.off()
-
+    
   # "intelligent" CAS loader
   def loadcas_stream(self,f):
     byte = bytearray(1)
@@ -146,19 +119,24 @@ class ld_trs80:
         self.poke(addr,block)
         f.readinto(byte)
         if byte[0] == 0x78:
-            f.readinto(word)
-            addr = (word[1] << 8) + word[0]
-            print("Starting address: %04X" % addr)
-            print("> SYSTEM")
-            print("*? /%d" % addr)
-            self.poke(0x40DF,word)
-            break
-    self.cpu_continue()
-
-  def defunct(self,f):
-    self.cpu_halt()
-    start_addr = 0
-    self.poke(0x40DF,bytearray([start_addr&0xFF,(start_addr>>8)&0xFF]))
+          f.readinto(word)
+          addr = (word[1] << 8) + word[0]
+          print("Starting address: 0x%04X" % addr)
+          print("> SYSTEM")
+          print("*? /%d or just /" % addr)
+          self.poke(0x40DF,word)
+          if self.autostart:
+            stored_rom = bytearray(8)
+            self.peek(0,stored_rom)
+            self.poke(0,bytearray([0xF3, 0xAF, 0x11, 0xFF, 0xFF, 0xC3])) # JMP ...
+            self.poke(6,word)
+            self.cpu_reset_halt()
+            self.cpu_halt()
+            self.cpu_continue()
+            sleep_ms(10)
+            self.cpu_halt()
+            self.poke(0,stored_rom)
+          break
     self.cpu_continue()
 
   def loadcas(self,filename):
