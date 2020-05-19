@@ -70,7 +70,20 @@ class ld_trs80:
     self.spi.write(bytearray([1,(addr>>24)&0xFF,(addr>>16)&0xFF,(addr>>8)&0xFF,addr&0xFF,0]))
     self.spi.readinto(buffer)
     self.cs.off()
+
+  # call this while CPU is HALTed
+  def reset_jmp(self,addr):
+    stored_rom = bytearray(3)
+    self.peek(0,stored_rom)
+    self.poke(0,bytearray([0xC3, addr&0xFF, (addr>>8)&0xFF])) # JMP addr
+    self.cpu_reset_halt()
+    self.cpu_halt()
+    self.cpu_continue()
+    sleep_ms(10)
+    self.cpu_halt()
+    self.poke(0,stored_rom)
     
+
   # "intelligent" CAS loader
   def loadcas_stream(self,f):
     byte = bytearray(1)
@@ -126,18 +139,69 @@ class ld_trs80:
           print("*? /%d or just /" % addr)
           self.poke(0x40DF,word)
           if self.autostart:
-            stored_rom = bytearray(3)
-            self.peek(0,stored_rom)
-            self.poke(0,bytearray([0xC3])) # JMP ...
-            self.poke(1,word)
-            self.cpu_reset_halt()
-            self.cpu_halt()
-            self.cpu_continue()
-            sleep_ms(10)
-            self.cpu_halt()
-            self.poke(0,stored_rom)
+            self.reset_jmp(addr)
+            #stored_rom = bytearray(3)
+            #self.peek(0,stored_rom)
+            #self.poke(0,bytearray([0xC3])) # JMP ...
+            #self.poke(1,word)
+            #self.cpu_reset_halt()
+            #self.cpu_halt()
+            #self.cpu_continue()
+            #sleep_ms(10)
+            #self.cpu_halt()
+            #self.poke(0,stored_rom)
           break
     self.cpu_continue()
 
   def loadcas(self,filename):
     return self.loadcas_stream(open(filename,"rb"))
+
+  def loadcmd_stream(self,f):
+    byte=bytearray(1)
+    word=bytearray(2)
+    block=bytearray(256)
+    self.cpu_halt()
+    while f.readinto(byte):
+      if byte[0]==1:
+        # record type 1 is "load block"
+        f.readinto(byte)
+        l=byte[0]
+        # compensate for special values 0,1, and 2.
+        if l<3:
+          l+=256
+        # read 16-bit load-address
+        f.readinto(word)
+        address=(word[1]<<8) + word[0]
+        #print("Reading 01 block, addr %04X, length = %d" % (address,l-2))
+        if len(block) != l-2:
+          block = bytearray(l-2)
+        f.readinto(block)
+        self.poke(address,block)
+        continue
+      if byte[0]==2:
+        # record type 2 is "entry address"
+        f.readinto(byte)
+        l=byte[0]
+        #print("Reading 02 block length = %d" % l)
+        if l != 2:
+          print("unsupported 02 block length")
+          break
+        entry_address=bytearray(l)
+        f.readinto(entry_address)
+        jmp_address=(entry_address[1]<<8)+entry_address[0]
+        print("Entry point is %d = 0x%04X" % (jmp_address,jmp_address))
+        self.reset_jmp(jmp_address)
+        break
+      if byte[0]==5:
+        # record type 5 is "load module header"
+        f.readinto(byte)
+        header=bytearray(byte[0])
+        f.readinto(header)
+        printf("Reading 05 block length = %d" % len(header));
+        continue
+      print("unknown record type %02X" % byte[0])
+      break
+    self.cpu_continue()
+
+  def loadcmd(self,filename):
+    return self.loadcmd_stream(open(filename,"rb"))

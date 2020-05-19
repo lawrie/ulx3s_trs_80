@@ -227,6 +227,14 @@ class osd:
         s.loadcas(filename)
         del s
         gc.collect()
+      if filename.endswith(".cmd"):
+        self.enable[0]=0
+        self.osd_enable(0)
+        import ld_trs80
+        s=ld_trs80.ld_trs80(self.spi,self.cs)
+        s.loadcmd(filename)
+        del s
+        gc.collect()
 
   @micropython.viper
   def osd_enable(self, en:int):
@@ -338,7 +346,7 @@ class osd:
   #    self.spi.write(bytearray(a)) # write content
   #    self.cs.off()
 
-#os.mount(SDCard(slot=3),"/sd")
-#ecp5.prog("/sd/vic20/bitstreams/ulx3s_vic20_32K_85f.bit")
+os.mount(SDCard(slot=3),"/sd")
+#ecp5.prog("/sd/trs80/bitstreams/ulx3s_trs80_12f.bit")
 gc.collect()
 trs80=osd()
